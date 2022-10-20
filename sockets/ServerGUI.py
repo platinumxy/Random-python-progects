@@ -1,11 +1,3 @@
-"""import socket
-import tkinter
-from tkinter import messagebox
-from time import sleep 
-
-
-class Server(tkinter.Tk):
-    def __init__(self):"""
 import socket
 import threading
 import tkinter
@@ -94,7 +86,6 @@ if __name__ == '__main__':
     port = 62_444
     sock.bind((host, port))
     sock.listen(0)
-    #sock.recvfrom(62_444)
 
     app = Server()
 
@@ -102,10 +93,6 @@ if __name__ == '__main__':
     apploop = threading.Thread(target=app.mainloop)
     autoRefresh = threading.Thread(target=autoRefresher, args=(app.Refresh,))
     
-    #apploop.start()
     connectionsHandle.start()
     autoRefresh.start()
     app.mainloop()
-
-    #app.mainloop()
-    #s.close()
