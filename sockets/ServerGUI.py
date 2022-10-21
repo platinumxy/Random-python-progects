@@ -2,7 +2,9 @@ import socket
 import threading
 import tkinter
 from tkinter import messagebox
-from time import sleep 
+from time import sleep, time
+from collections import deque
+from math import floor 
 
 class Server(tkinter.Tk):
     def __init__(self):
@@ -10,7 +12,7 @@ class Server(tkinter.Tk):
         self.title('Server')
         self.configure(background='#f0f0f0')
         self.protocol('WM_DELETE_WINDOW', lambda: self.Close())
-        self.messages = ['host == '+socket.gethostname()] 
+        self.messages = deque(['host = '+socket.gethostname(),'Time Stamp - IP : Address -> Message'])
         self.DisplayMessages()
 
     def ClearPage(self): 
@@ -27,39 +29,40 @@ class Server(tkinter.Tk):
         self.ClearPage()
         scrollbar = tkinter.Scrollbar(self)
         scrollbar.grid(row=0, column=3, sticky=tkinter.N+tkinter.S)
-        Messages = tkinter.Listbox(self, yscrollcommand=scrollbar.set, width=100, height=20)
-        scrollbar.config(command=Messages.yview)
-        Messages.grid(row=0, column=0)
+        self.DMessages = tkinter.Listbox(self, yscrollcommand=scrollbar.set, width=100, height=20)
+        scrollbar.config(command=self.DMessages.yview)
+        self.DMessages.grid(row=0, column=0)
         for message in self.messages:
-            Messages.insert(tkinter.END, message)
+            self.DMessages.insert(tkinter.END, message)
+        tkinter.Button(self, text="SAVE", command=self.save).grid(row=1,column=0)
 
     def Refresh(self):
-        updateted = False
         for index, item in enumerate(updated):
             if not item :
                 continue
             updateted = True 
             self.messages.append(clients[index][-1])
+            self.DMessages.insert(tkinter.END, clients[index][-1])
             updated[index] = False
-        if updateted:
-            self.DisplayMessages()
     
-                
-
+    def save(self):
+        with open("logs.log","w") as log:
+            log.write("\n".join(self.messages))
 
 def autoRefresher(func):
     while True :
-        sleep(0.5)
+        sleep(0.1)
         func()
 
 
 def connectionsHandeler(clients,updated):
     global sock
-    c, addr = sock.accept()
-    print("Client connected", addr)
-    clients.append([threading.Thread(target=clientHandeler, args=(c, addr, len(clients))), c, addr, f"Client connected {addr}"])
-    updated.append(True)
-    clients[-1][0].start()
+    while True :
+        c, addr = sock.accept()
+        print("Client connected", addr)
+        clients.append([threading.Thread(target=clientHandeler, args=(c, addr, len(clients))), c, addr, f"{floor(time())}-{addr[0]}:{addr[1]} Connected"])
+        updated.append(True)
+        clients[-1][0].start()
 
 def clientHandeler(c, addr, index):
     global updated, clients
@@ -68,13 +71,13 @@ def clientHandeler(c, addr, index):
             content = c.recv(9999).decode()
             if not content:break
             updated[index] = True
-            clients[index][-1] = f"{addr[0]} -> {addr[1]} {content}"
+            clients[index][-1] = f"{floor(time())}-{addr[0]}:{addr[1]} ->  {content}"
             print(content)
         except ConnectionResetError:
             break
-    clients[index] = None 
+    clients[index] = [f"{floor(time())}-{addr[0]}:{addr[1]} disconnected"] 
     updated[index] = None 
-    print("Client closed", addr)
+    
     return
 
 if __name__ == '__main__':
