@@ -5,6 +5,27 @@ from tkinter import messagebox
 from time import sleep, time
 from collections import deque
 from math import floor 
+from plyer import notification
+
+# Folowing code taken from folder and file handler see there for explaination and docs
+def MoveTo(fileName:str) ->  str: return __RecursiveMoveTo(fileName, True)
+def __RecursiveMoveTo(fileName, __START=False):
+    from os import getcwd, listdir, chdir, path 
+    cwd = getcwd()
+    for file in listdir(cwd):
+        if path.isfile(file): 
+            if file == fileName:return cwd
+        else :
+            try :
+                chdir(cwd+"\\"+file)
+                found = __RecursiveMoveTo(fileName)
+                if found : return cwd 
+            except NotADirectoryError: pass 
+    if __START :raise FileNotFoundError()
+    else: return False 
+#Used to avoid issues coming from IDEs not running code in correct folder 
+AppIcon = "AppIcon.ico"
+MoveTo(AppIcon)
 
 class Server(tkinter.Tk):
     def __init__(self):
@@ -43,6 +64,19 @@ class Server(tkinter.Tk):
             updateted = True 
             self.messages.append(clients[index][-1])
             self.DMessages.insert(tkinter.END, clients[index][-1])
+
+            temp = clients[index][-1].split(" -> ")
+            ip = temp[0].split("-")[1]
+            content = temp[1]
+
+            notification.notify(
+                    title = ip,
+    message = content,
+    app_icon = AppIcon,
+    timeout = 1,
+            )
+
+
             updated[index] = False
     
     def save(self):
@@ -60,7 +94,7 @@ def connectionsHandeler(clients,updated):
     while True :
         c, addr = sock.accept()
         print("Client connected", addr)
-        clients.append([threading.Thread(target=clientHandeler, args=(c, addr, len(clients))), c, addr, f"{floor(time())}-{addr[0]}:{addr[1]} Connected"])
+        clients.append([threading.Thread(target=clientHandeler, args=(c, addr, len(clients))), c, addr, f"{floor(time())}-{addr[0]}:{addr[1]} -> Connected"])
         updated.append(True)
         clients[-1][0].start()
 
@@ -71,7 +105,7 @@ def clientHandeler(c, addr, index):
             content = c.recv(9999).decode()
             if not content:break
             updated[index] = True
-            clients[index][-1] = f"{floor(time())}-{addr[0]}:{addr[1]} ->  {content}"
+            clients[index][-1] = f"{floor(time())}-{addr[0]}:{addr[1]} -> {content}"
             print(content)
         except ConnectionResetError:
             break
