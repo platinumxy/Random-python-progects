@@ -73,6 +73,7 @@ if actAsServer():
     found = False
     Thread(target=waitingScreen).start()
     client, addr = s.accept()
+    found = True
 
 else:
     Uhost = input("Enter host name (default will be local machine)")
