@@ -1,6 +1,8 @@
 import socket
 from time import sleep, time
 from threading import Thread
+from plyer import notification 
+
 
 def MessageReciver():
     while True:
@@ -9,6 +11,12 @@ def MessageReciver():
             if not mess:
                 continue
             print("\n> "+mess.decode())
+            notification.notify(
+                title = f'Message from {CorS}',
+                message = mess.decode(),
+                app_name = "Platinumxy's App",
+                timeout = 10
+            )
         except ConnectionResetError:
             try:
                 Uhost
@@ -90,6 +98,13 @@ else:
         except ConnectionRefusedError:
             pass
     client = s
+
+try : 
+    Uhost 
+    CorS = Uhost 
+except :
+    CorS = addr 
+
 
 Thread(target=MessageSender).start()
 Thread(target=MessageReciver).start()

@@ -56,6 +56,7 @@ class monkey:
 
 class display(TK.Tk):
     def __init__(self) -> None:
+        self.noMainloop = True  
         TK.Tk.__init__(self)
         self.title('Infinite monkey experiment')
         self.configure(background='#f0f0f0')
@@ -87,6 +88,8 @@ class display(TK.Tk):
         
 
     def updatePages(self):
+        if self.noMainloop :
+            self.mainloop()
         sleep(1)
         if self.activePage == self.mainpage :
             self.largestword.set(largestWord())
@@ -120,7 +123,7 @@ def pageHolder():
 def autoRefresher(func):
     while True :
         sleep(0.1)
-        func()
+        threading.Thread(target=func).start()
 
 # removes the one letter and two letter words from the Words list
 ALLWORDS = [word for word in ALLWORDS if len(word) > 2]
@@ -155,5 +158,5 @@ apploop = threading.Thread(target=App.mainloop)
 autoRefresh = threading.Thread(target=autoRefresher, args=(App.updatePages,))
 MonkHand = threading.Thread(target=monkeyHandeler)
 MonkHand.start()
-apploop.start()
+#apploop.start()
 autoRefresh.start()
