@@ -1,4 +1,4 @@
-import os, sys 
+import os 
 def getDataFromFolder(folder,*, BitFiles=False):
     data = ""
     bitData = b''

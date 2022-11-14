@@ -1,162 +1,145 @@
+import tkinter.messagebox as mb
+import tkinter as tk
+import tkinter.ttk as ttk
+from time import time
+from os import _exit
+from threading import Thread
 from dataclasses import dataclass, field
 from functools import cache
-from time import sleep
 from random import choice
 from allwords import ALLWORDS
-import threading
-import tkinter as TK 
-from typing import List
 
-
-class HowManyMonkeys(TK.Tk):
-    """Creates a pop up box that sets numberOfMonkeys to the input"""
-    def __init__(self): TK.Tk.__init__(self); self.title('How many monkeys?'); self.geometry('300x100'); self.configure(bg='#f0f0f0'); self.protocol('WM_DELETE_WINDOW', lambda: self.Close()); self.numOfMonkeys=TK.IntVar(); self.numOfMonkeys.set(1); self.numOfMonkeys.trace('w', lambda name, index, mode, numOfMonkeys=self.numOfMonkeys: self.updateMonkeys()); TK.Label(self, text='How many monkeys?').grid(row=0, column=0, columnspan=2); TK.Entry(self, textvariable=self.numOfMonkeys).grid(row=1, column=0); self.monkeys=[]; self.startButton=TK.Button(self, text='Start', command=lambda: self.start()); self.startButton.grid(row=2, column=0, columnspan=2); self.updateMonkeys()
-    def updateMonkeys(self): self.startButton.config(text='Start ('+str(self.numOfMonkeys.get())+')')
-    def start(self): global numberOfMonkeys; numberOfMonkeys = self.numOfMonkeys.get(); self.destroy()
-    def close(self):
-        from os import _exit
-        self.destroy();_exit(0)
 
 @dataclass
 class monkey:
-    name: str
-    words: list = field(default_factory=list)
+    name: str = "Monkey"
+    noPrint: bool = False
+    words: list[str] = field(default_factory=list)
+    largestWord = ""
+    lenLargestWord = 0
+    numWords = 0
 
-    def GuessWord(self):
-        """The Monkey endlessly trys to make a word and if it does it adds it to its word set """
+    def __iter__(self) -> object :
+        return self
+
+    def __next__(self) -> str:
+        try:
+            self.loopCount = self.loopCount + 1
+        except AttributeError:
+            self.loopCount = 0
+        if self.loopCount == len(self.words):
+            del self.loopCount
+            raise StopIteration
+        return self.words[self.loopCount]
+
+    def guessWord(self, endlesslyGuess=True) -> None:
+        """Guesses a word endlessly and adds it to the monkeys words"""
+
+        # runs the code once then checks for endless run and if it is run forever as python does not have a REPEAT/DO .. UNTIL loop
         while True:
-            # sleep(0.00000000001)
-            sleep(0)
-            word = []
-            letter: str
-            while True:
-                letter = choice(chars)
-                if letter == " ":
-                    break
-                word.append(letter)
+            currentW, currentL = "", ""
+            
+            while currentL != " ":
+                currentL = choice(ALLLETTERS)
+                currentW = currentW + currentL
+            if currentwInALLW(currentW):
+                self.addWordToWords(currentW[:-1])
+                
+            if not endlesslyGuess:
+                break
 
-            word = "".join(word)
-            if realWord(word):
-                if not (word in self.words):
-                    self.words.append(word)
-                    print(self.name, word)
-
-    def LargestWord(self):
-        """Returns the largest word that the Monkey has found """
-        returnWord = ""
-        for word in self.words:
-            if len(word) >= len(returnWord):
-                returnWord = word
-        return returnWord
-
-    def NumWords(self):
-        """Returns the number of words the monkey has found"""
-        return len(self.words)
+    def addWordToWords(self, word) -> None:
+        if not self.noPrint:
+            print(self.name, "found", word)
+        self.words.append(word)
+        self.numWords = self.numWords + 1
+        if len(word) >= len(self.largestWord):
+            self.largestWord = word
+            self.lenLargestWord = len(word)
 
 
-class display(TK.Tk):
-    def __init__(self) -> None:
-        self.noMainloop = True  
-        TK.Tk.__init__(self)
-        self.title('Infinite monkey experiment')
-        self.configure(background='#f0f0f0')
-        self.protocol('WM_DELETE_WINDOW', self.Close)
-        #creates the updater that will update all of the text vars 
-        self.updater = threading.Thread(target=self.updatePages)
-        self.mainpage()
+class HowManyMonkeys:
+    """Creates a pop up box that sets numberOfMonkeys to the input"""
+    def __init__(self, ) -> None:
+        self.mainWin = tk.Tk()
+        self.mainWin.title('How many monkeys?')
+        self.mainWin.geometry('285x120')
+        self.mainWin.resizable(False, False)
+        self.mainWin.protocol("WM_DELETE_WINDOW", self._exit)
+        self.numMonk = tk.IntVar(value="")     
+        
+        ttk.Label(self.mainWin, text="How Many Monkeys").pack()
+        ttk.Label(self.mainWin, text="(Recomended no more than 10)").pack()
+        
+        self.numMonkBox = ttk.Entry(self.mainWin, textvariable=self.numMonk)
+        self.numMonkBox.pack(ipady=5,pady=5)
+        self.numMonkBox.bind("<Return>", func=self._submit)
+        self.numMonkBox.focus_set()
+        
+        self.sumbitButton = ttk.Button(self.mainWin, command=self._submit)
+        self.sumbitButton.pack(ipady=3)
 
-    def Close(self):
-        self.destroy()
-
-    def ClearPage(self):
-        for child in self.winfo_children():
-            child.destroy()
-
-    def mainpage(self):
-        self.ClearPage()
-        self.activePage = self.mainpage
-        TK.Label(self, text="The Endless monkeys").grid(row=0,column=0,columnspan=1)
-        self.largestword = TK.StringVar(value=largestWord())
-        self.numWords = TK.StringVar(value=str(howmanywords()))
-
-        TK.Label(self, text="Largest Word").grid(row=1,column=0)
-        TK.Label(self, textvariable=self.largestword).grid(row=1,column=1)
-
-        TK.Label(self, text="Number of Words").grid(row=2,column=0)
-        TK.Label(self, textvariable=self.numWords).grid(row=2,column=1)
+        self._updateButton()
+        
+    def _updateButton(self):
+        """Endlessly updates the submit button with the value in the input box every 10ms"""
+        try: 
+            self.sumbitButton.config(text="Submit ("+str(self.numMonk.get())+")")
+        except tk.TclError:
+            self.sumbitButton.config(text="Submit (  )")
+        self.mainWin.after(10, self._updateButton)
+        
+    def _submit(self, *args):
+        """Takes args as the bind method passes the key pressed and we dont need that info """
+        global NUMOFMONKEYS
+        try: 
+            NUMOFMONKEYS = int(self.numMonk.get())
+            if NUMOFMONKEYS < 1 :
+                return
+        except:
+            return
+        self._exit(quietExit=True)
     
+    def _exit(self, *, quietExit=False):
+        if not quietExit :
+            if mb.askyesno("Infinite Monkey Experiment", "Are you sure you want to quit?") :
+               _exit(0)
+            else: 
+                return 
+        else :
+            self.mainWin.destroy()
+            
+    def mainloop(self):
+        self.mainWin.mainloop()
         
 
-    def updatePages(self):
-        if self.noMainloop :
-            self.mainloop()
-        sleep(1)
-        if self.activePage == self.mainpage :
-            self.largestword.set(largestWord())
-            self.numWords.set(str(howmanywords())) 
- 
 @cache
-def realWord(word):
-    """Returns if a word is a real word"""
-    return (word in ALLWORDS)
-
-def howmanywords():
-    global monkeys 
-    wordCount = 0
-    for Monk in monkeys :
-        wordCount = wordCount + Monk.NumWords()
-    return wordCount
-
-def largestWord():
-    global monkeys
-    largestWord = ""
-    for Monk in monkeys :
-        monkWord = Monk.LargestWord()
-        if len(largestWord) < len(monkWord) :
-            largestWord = monkWord 
-
-def pageHolder():
-    global page
-    page = display()
-    page.mainloop()
-
-def autoRefresher(func):
-    while True :
-        sleep(0.1)
-        threading.Thread(target=func).start()
-
-# removes the one letter and two letter words from the Words list
-ALLWORDS = [word for word in ALLWORDS if len(word) > 2]
-chars = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L",
-         "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"]
-monkeys = []
-for i in range(3):  # incresse the value to incresse the probibility of the monkey choing a space
-    chars.append(" ")
-
-#Gets the number of monkeys that the user wants 
-numberOfMonkeys = 0
-HowManyMonkeys().mainloop()
+def currentwInALLW(word: str) -> bool:
+    if not (2 < len(word) < 10):
+        return False
+    return word[:-1] in ALLWORDS
 
 
-def monkeyHandeler():
-    global monkeys 
-    for i in range(numberOfMonkeys):
-        monkeys.append(monkey(f"Monkey {i+1}"))
-    monkeyThreads = [threading.Thread(target=Monk.GuessWord) for Monk in monkeys]
-    for thread in monkeyThreads :
-        thread.start()
-    monkeyThreads[0].join()
+def monkeyHandeler(numMonkeys: int, * , noPrint=False) -> None:
+    monkeys: list[monkey] = []
+    monkeyThreads: list[Thread] = []
+    for monkeyNum in range(numMonkeys):
+        monkeys.append(monkey(f"Monkey - {monkeyNum+1}", noPrint))
+        monkeyThreads.append(Thread(target=monkeys[-1].guessWord))
+        monkeyThreads[-1].start()
 
 
-App = display()
-#Use page holder as display is a child of TK and it wants to be called from the the same thread 
-#threading.Thread(target=pageHolder).start()
-#Starts the pages updat
+ALLWORDS = [word for word in ALLWORDS if len(word) > 3 and len(word) < 10]
+ALLLETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L',
+              'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
+SPACEFREQUENCY = 5
+for _ in range(SPACEFREQUENCY):
+    ALLLETTERS.append(' ')
 
 
-apploop = threading.Thread(target=App.mainloop)
-autoRefresh = threading.Thread(target=autoRefresher, args=(App.updatePages,))
-MonkHand = threading.Thread(target=monkeyHandeler)
-MonkHand.start()
-#apploop.start()
-autoRefresh.start()
+
+if __name__ == "__main__":
+    NUMOFMONKEYS:int = 1
+    HowManyMonkeys().mainloop()
+
+    monkeyHandeler(NUMOFMONKEYS)

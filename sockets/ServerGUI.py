@@ -1,7 +1,8 @@
 import socket
 import threading
 import tkinter
-from tkinter import messagebox
+from tkinter import messagebox as mb
+from tkinter import ttk as ttk
 from time import sleep, time
 from collections import deque
 from math import floor 
@@ -40,7 +41,7 @@ class Server(tkinter.Tk):
         for child in self.winfo_children(): child.destroy()
 
     def Close(self): 
-        if messagebox.askyesno('Close', 'Are you sure you want to close?'): 
+        if mb.askyesno('Close', 'Are you sure you want to close?'): 
             self.destroy()
             from os import _exit
             _exit(0)
@@ -48,14 +49,14 @@ class Server(tkinter.Tk):
 
     def DisplayMessages(self):
         self.ClearPage()
-        scrollbar = tkinter.Scrollbar(self)
+        scrollbar = ttk.Scrollbar(self)
         scrollbar.grid(row=0, column=3, sticky=tkinter.N+tkinter.S)
         self.DMessages = tkinter.Listbox(self, yscrollcommand=scrollbar.set, width=100, height=20)
         scrollbar.config(command=self.DMessages.yview)
         self.DMessages.grid(row=0, column=0)
         for message in self.messages:
             self.DMessages.insert(tkinter.END, message)
-        tkinter.Button(self, text="SAVE", command=self.save).grid(row=1,column=0)
+        ttk.Button(self, text="SAVE", command=self.save).grid(row=1,column=0)
 
     def Refresh(self):
         for index, item in enumerate(updated):
