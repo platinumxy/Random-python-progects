@@ -4,7 +4,6 @@ import tkinter.ttk as ttk
 from time import sleep , time
 from math import floor 
 from os import _exit
-from datetime import datetime , timedelta
 from threading import Thread
 from dataclasses import dataclass, field
 from functools import cache
@@ -20,6 +19,7 @@ class monkey:
     largestWord = ""
     lenLargestWord = 0
     numWords = 0
+    running = True
 
     def __iter__(self) -> object :
         return self
@@ -123,6 +123,7 @@ class MainWindowIME(tk.Tk):
         tk.Tk.__init__(self)
         self.startTime = time()
         self.timeSinceStart = 0
+        self._maxMonkeysPerPage = 10
         
         self.titleFont = ('Arial', 20, 'bold')
         self.style = ttk.Style(self)
@@ -131,7 +132,7 @@ class MainWindowIME(tk.Tk):
         self.LabPaddy = {"padx":1, "pady":5}
         self.ArrowPaddy = {"pady":5}
         
-        self._frame = None 
+        self._frame:ttk.Frame = None 
         self._currentFrameFunc = None 
         self._travelHis: list[function] = [] 
         
@@ -150,6 +151,16 @@ class MainWindowIME(tk.Tk):
             self.NumWordsFound.config(text=str(numWords()))
             self.LargestWordFound.config(text=largestWord())
             
+        elif self._currentFrameFunc == self.renderAllMonkeyData:
+            for monkData in self.monkeysOnDisplay:
+                monk = monkeys[monkData[0]]
+                if monk.running  :
+                    monkData[1].config(text="Active")
+                else: 
+                    monkData[1].config(text="InActive")
+                monkData[2].config(text=monk.largestWord)
+                monkData[3].config(text=str(monk.numWords))
+    
         self.timeSinceStart = time() - self.startTime
         self.TimeSSLabel.config(text=str(floor(self.timeSinceStart)))
         self.after(100, self._refresh)
@@ -157,13 +168,15 @@ class MainWindowIME(tk.Tk):
     def _exit(self):
         _exit(0)
 
-    def swapFrame(self, render,*, _dontAddToBackLog=False, refresh=False) -> None :
-        if self._currentFrameFunc == render and not refresh:
-            pass
+    def swapFrame(self, render,*, _dontAddToBackLog=False, refresh=False, destroyerFunc=lambda: _pass()) -> None :
+        if (self._currentFrameFunc == render) and (not refresh):
+            return
         if self._frame != None :
+            destroyerFunc()
             self._frame.destroy()
-            if not _dontAddToBackLog :
+            if (not _dontAddToBackLog) and (not refresh) :
                 self._travelHis.append(self._currentFrameFunc)
+                
         self._currentFrameFunc = render
         self._frame = ttk.Frame()
         self._frame.pack()
@@ -187,12 +200,64 @@ class MainWindowIME(tk.Tk):
         self.LargestWordFound = ttk.Label(self._frame)
         self.LargestWordFound.grid(row=3, column=2, **self.LabPaddy)
 
+
+        ttk.Button(self._frame, text="See All Monkeys", command=lambda: self.swapFrame(self.renderAllMonkeyData)).grid(row=4, column=0, columnspan=3)
         
-        self.BackHomeTimeSinceStart(row=4, columnSpan=3)
+        self.BackHomeTimeSinceStart(row=5, columnSpan=3)
+    
+    def renderAllMonkeyData(self):
+        def monkeyInfo(row,i):
+            self.monkeysOnDisplay.append([i])
+            self.monkeysOnDisplay[-1].append(ttk.Label(self._frame))
+            self.monkeysOnDisplay[-1].append(ttk.Label(self._frame))
+            self.monkeysOnDisplay[-1].append(ttk.Label(self._frame))
+            
+            ttk.Label(self._frame, text=monkeys[i].name).grid(row=row, column=0)
+            self.monkeysOnDisplay[-1][1].grid(row=row,column=1)
+            self.monkeysOnDisplay[-1][2].grid(row=row,column=3) 
+            self.monkeysOnDisplay[-1][3].grid(row=row,column=2)
+            
+            ttk.Button(self._frame, text="More Info", command=lambda:print(str(i), "More Info")).grid(row=row, column=4)
+            ttk.Button(self._frame, text="Pause", command=lambda:print(str(i), "Pause")).grid(row=row, column=5)
+            ttk.Button(self._frame, text="Delete", command=lambda:print(str(i), "Delete")).grid(row=row, column=6)
+
+        if not hasattr(self, "numMonkAlreadyLoaded"): 
+            self.numMonkAlreadyLoaded = 0
+        row = 0
+        ttk.Label(self._frame, text="All Monkey Info Page", font=self.titleFont).grid(row=row,column=0, columnspan=7 )
+        row = row+1 
         
-    def BackHomeTimeSinceStart(self, *, row, column=0, columnSpan=5): 
-        self.Home = ttk.Button(self._frame, text="Home", command=lambda: self.swapFrame(self.renderHomePage))
-        self.Back = ttk.Button(self._frame, text="Back", command=lambda: self.swapFrame(self._travelHis.pop(), _dontAddToBackLog=True))
+        ttk.Label(self._frame, text="Monkey Name").grid(row=row, column=0, padx=4, pady=5)
+        ttk.Label(self._frame, text="Status").grid(row=row, column=1, padx=4, pady=5)
+        ttk.Label(self._frame, text="Largest Word").grid(row=row, column=2, padx=4, pady=5)
+        ttk.Label(self._frame, text="Num Words").grid(row=row, column=3, padx=4, pady=5)
+        
+        row=row+1
+        self.monkeysOnDisplay:list[list[int ,ttk.Label, ttk.Label, ttk.Label]] = []
+        for i in range(self.numMonkAlreadyLoaded,
+                       self._maxMonkeysPerPage+self.numMonkAlreadyLoaded):
+            if i >= len(monkeys):
+                break
+            else: 
+                self.numMonkAlreadyLoaded = self.numMonkAlreadyLoaded + 1
+            monkeyInfo(row, i)
+            
+            row = row+1  
+        if self.numMonkAlreadyLoaded < len(monkeys):
+            ttk.Button(self._frame, text="More Monkeys", 
+                       command=lambda:self.swapFrame(self.renderAllMonkeyData, refresh=True)
+                       ).grid(row=row, column=0, columnspan=7)
+            row= row +1 
+        self.BackHomeTimeSinceStart(row=row, columnSpan=7, 
+                                    customBackKwargs={"_dontAddToBackLog":True, "destroyerFunc":self.delRenderAllMonkeyData }, 
+                                    customHomeKwargs={"destroyerFunc":self.delRenderAllMonkeyData})
+    
+    def delRenderAllMonkeyData(self):
+        del self.numMonkAlreadyLoaded, self.monkeysOnDisplay
+    
+    def BackHomeTimeSinceStart(self, *, row, column=0, columnSpan=5,customHomeKwargs={}, customBackKwargs={"_dontAddToBackLog":True}): 
+        self.Home = ttk.Button(self._frame, text="Home", command=lambda: self.swapFrame(self.renderHomePage, **customHomeKwargs))
+        self.Back = ttk.Button(self._frame, text="Back", command=lambda: self.swapFrame(self._travelHis.pop(), **customBackKwargs))
         if columnSpan%2 == 0 :
             HCS = int(columnSpan/2)
             self.Home.grid(row=row, column=column, columnspan=HCS)
@@ -216,7 +281,6 @@ def currentwInALLW(word: str) -> bool:
     if not (2 < len(word) < 10):
         return False
     return word[:-1] in ALLWORDS
-
 
 def numWords() -> int :
     total = 0 
@@ -244,7 +308,7 @@ def monkeyHandeler(numMonkeys: int, * , noPrint=False) -> None:
         monkeyThreads.append(Thread(target=monkeys[-1].guessWord))
         monkeyThreads[-1].start()
 
-
+def _pass(*args, **kwargs): pass
 
 ALLWORDS = [word for word in ALLWORDS if len(word) > 3 and len(word) < 10]
 ALLLETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L',
@@ -252,7 +316,6 @@ ALLLETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L',
 SPACEFREQUENCY = 5
 for _ in range(SPACEFREQUENCY):
     ALLLETTERS.append(' ')
-
 
 
 if __name__ == "__main__":
