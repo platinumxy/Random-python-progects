@@ -13,9 +13,8 @@ from allwords import ALLWORDS
 
 
 @dataclass
-class monkey:
+class Monkey:
     name: str = "Monkey"
-    noPrint: bool = False
     words: list[str] = field(default_factory=list)
     largestWord = ""
     lenLargestWord = 0
@@ -62,8 +61,6 @@ class monkey:
                 sleep(1)
 
     def addWordToWords(self, word) -> None:
-        if not self.noPrint:
-            print(self.name, "found", word)
         self.words.append(word)
         self.numWords = self.numWords + 1
         if len(word) > self.lenLargestWord:
@@ -186,14 +183,16 @@ class MainWindowIME(tk.Tk):
         self.TimeSSLabel.config(text=str(floor(self.timeSinceStart)))
         self.after(100, self._refresh)
 
-    def _stopMRunning(self,activeM:monkey,button:ttk.Button):
+    def _stopMRunning(self,activeM:Monkey,button:ttk.Button):
         activeM.running=False
         button.config(text="Resume", command=lambda: self._startMRunning(activeM,button))
-    def _startMRunning(self,activeM:monkey,button:ttk.Button):
+    
+    def _startMRunning(self,activeM:Monkey,button:ttk.Button):
         activeM.running=True
         button.config(text="Pause", command=lambda: self._stopMRunning(activeM,button))
 
-    def _exit(self) -> None: _exit(0)
+    def _exit(self) -> None: 
+        _exit(0)
 
     def swapFrame(self, render,*, _dontAddToBackLog=False, refresh=False, destroyerFunc=lambda *ANY: None, args:tuple=(), kwargs:dict={}) -> None :
         """Swaps the current _frame for the frame created with the given function
@@ -293,11 +292,16 @@ class MainWindowIME(tk.Tk):
             monkeyInfo(row, i)
             
             row = row+1  
+        
+        newMonkBut = ttk.Button(self._frame, text="Create New Monkey", command=lambda: self.createNewMonkey(self.refreshAllMonkData))
         if self.numMonkAlreadyLoaded < len(monkeys):
+            newMonkBut.grid(row=row, column=0, columnspan=3)
             ttk.Button(self._frame, text="More Monkeys", 
                        command=lambda:self.swapFrame(self.renderAllMonkeyData, destroyerFunc=self.delRenderAllMonkeyData, refresh=True)
-                       ).grid(row=row, column=0, columnspan=7)
-            row= row +1 
+                       ).grid(row=row, column=5, columnspan=3)
+        else:
+            newMonkBut.grid(row=row, column=0, columnspan=7)
+        row=row+1 
         self.BackHomeTimeSinceStart(row=row, columnSpan=7)
     
     def delRenderAllMonkeyData(self) -> None:
@@ -311,8 +315,8 @@ class MainWindowIME(tk.Tk):
         
         self.swapFrame(self.renderAllMonkeyData, refresh=True, destroyerFunc=self.delRenderAllMonkeyData)
     
-    def renderSpecificMonkeyInfo(self, _monkey:monkey=None) -> None: 
-        def sortMwords(_monkey:monkey) :
+    def renderSpecificMonkeyInfo(self, _monkey:Monkey=None) -> None: 
+        def sortMwords(_monkey:Monkey) :
             _monkey.words.sort()
         row = 0
         self.ActiveMonkey = _monkey
@@ -389,7 +393,7 @@ class MainWindowIME(tk.Tk):
         self.TimeSSLabel = ttk.Label(timeSS, text=str(self.timeSinceStart))
         self.TimeSSLabel.pack()
     
-    def deleteMonkey(self, _monkey:monkey, refreshHandeler= lambda *args, **kwargs: None, *,  refreshHArgs:tuple=(), refreshHKwargs:dict={}) -> None:
+    def deleteMonkey(self, _monkey:Monkey, refreshHandeler= lambda *args, **kwargs: None, *,  refreshHArgs:tuple=(), refreshHKwargs:dict={}) -> None:
         if mb.askokcancel("Delete Monkey", f"Are you sure you wish to delete {_monkey.name}"):
             global monkeys, monkeyThreads
             mIndex = monkeys.index(_monkey)
@@ -401,6 +405,13 @@ class MainWindowIME(tk.Tk):
         else: 
             return
         
+    def createNewMonkey(self, refreshFunc, rFArgs:tuple=(), rFKwargs:dict={}):
+        global NUMOFMONKEYS, monkeyThreads, monkeys 
+        NUMOFMONKEYS = NUMOFMONKEYS + 1 
+        monkeys.append(Monkey(f"Monkey {NUMOFMONKEYS}"))
+        monkeyThreads.append(Thread(target=monkeys[-1].guessWord))
+        monkeyThreads[-1].start()
+        refreshFunc(*rFArgs,**rFKwargs)
     
 @cache
 def currentwInALLW(word: str) -> bool:
@@ -430,7 +441,7 @@ def monkeyHandeler(numMonkeys: int, * , noPrint=False) -> None:
         monkeys, monkeyThreads = [], [] 
     
     for monkeyNum in range(numMonkeys):
-        monkeys.append(monkey(f"Monkey - {monkeyNum+1}", noPrint))
+        monkeys.append(Monkey(f"Monkey - {monkeyNum+1}"))
         monkeyThreads.append(Thread(target=monkeys[-1].guessWord))
         monkeyThreads[-1].start()
 
@@ -445,16 +456,13 @@ for _ in range(SPACEFREQUENCY):
 if __name__ == "__main__":
     NUMOFMONKEYS:int = 1
     #As type annotations cannot be declared as global inside of functions 
-    monkeys: list[monkey] = []
+    monkeys: list[Monkey] = []
     monkeyThreads: list[Thread] = []
-    
     HowManyMonkeys().mainloop()
-    Thread(monkeyHandeler(NUMOFMONKEYS, noPrint=True)).start()
+    Thread(monkeyHandeler(NUMOFMONKEYS)).start()
     
     MainWindowIME().mainloop()
 
     #TODO add a search
     #TODO add find sentence 
-    #TODO add creating more more monkeys functuality
-    #TODO add back a page button to all monkeys page
     #TODO add functuality to save on exit 
