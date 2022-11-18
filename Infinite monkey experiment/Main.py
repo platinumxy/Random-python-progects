@@ -21,6 +21,7 @@ class monkey:
     lenLargestWord = 0
     numWords = 0
     running = True
+    dead = False
     startTime = time()
     
     def __iter__(self) -> object :
@@ -56,6 +57,8 @@ class monkey:
                 #To force the thread to give up the GIL
                 sleep(0.00001)
             else: 
+                if self.dead :
+                    return 
                 sleep(1)
 
     def addWordToWords(self, word) -> None:
@@ -190,7 +193,6 @@ class MainWindowIME(tk.Tk):
         activeM.running=True
         button.config(text="Pause", command=lambda: self._stopMRunning(activeM,button))
 
-
     def _exit(self) -> None: _exit(0)
 
     def swapFrame(self, render,*, _dontAddToBackLog=False, refresh=False, destroyerFunc=lambda *ANY: None, args:tuple=(), kwargs:dict={}) -> None :
@@ -267,7 +269,7 @@ class MainWindowIME(tk.Tk):
             else:
                 pauseResumeB.config(text="Resume", command=lambda: self._startMRunning(monkeys[i],pauseResumeB))
             pauseResumeB.grid(row=row, column=5)
-            ttk.Button(self._frame, text="Delete", command=lambda:print(str(i), "Delete")).grid(row=row, column=6)
+            ttk.Button(self._frame, text="Delete", command=lambda: self.deleteMonkey(monkeys[i], self.refreshAllMonkData)).grid(row=row, column=6)
 
         if not hasattr(self, "numMonkAlreadyLoaded"): 
             self.numMonkAlreadyLoaded = 0
@@ -300,6 +302,14 @@ class MainWindowIME(tk.Tk):
     
     def delRenderAllMonkeyData(self) -> None:
         del self.numMonkAlreadyLoaded, self.monkeysOnDisplay
+    
+    def refreshAllMonkData(self):
+        if self.numMonkAlreadyLoaded%self._maxMonkeysPerPage == 0:
+            self.numMonkAlreadyLoaded = self.numMonkAlreadyLoaded - self._maxMonkeysPerPage
+        else:
+            self.numMonkAlreadyLoaded = self.numMonkAlreadyLoaded - (self.numMonkAlreadyLoaded%self._maxMonkeysPerPage)
+        
+        self.swapFrame(self.renderAllMonkeyData, refresh=True, destroyerFunc=self.delRenderAllMonkeyData)
     
     def renderSpecificMonkeyInfo(self, _monkey:monkey=None) -> None: 
         def sortMwords(_monkey:monkey) :
@@ -350,10 +360,13 @@ class MainWindowIME(tk.Tk):
         ttk.Button(self._frame, text="Sort Words", command=lambda:sortMwords(_monkey)).grid(row=row,column=3,columnspan=2)
         row=row+1
         
-        ttk.Button(self._frame, text="Delete Monkey", command=lambda: print(self.ActiveMonkey.name,"Delete")).grid(row=row, column=3, columnspan=2)
+        ttk.Button(self._frame, text="Delete Monkey", command=lambda: self.deleteMonkey(self.ActiveMonkey, refreshHandeler=self.refreshSpesMonkInfo)).grid(row=row, column=3, columnspan=2)
         row=row+1
 
         self.BackHomeTimeSinceStart(row=row)
+    
+    def refreshSpesMonkInfo(self):
+        self.swapFrame(self.renderAllMonkeyData, _dontAddToBackLog=True, destroyerFunc=self.delRenderAllMonkeyData)    
     
     def delRenderSpecificMonkeyInfo(self) -> None:
         del self.ActiveMonkey
@@ -376,6 +389,18 @@ class MainWindowIME(tk.Tk):
         self.TimeSSLabel = ttk.Label(timeSS, text=str(self.timeSinceStart))
         self.TimeSSLabel.pack()
     
+    def deleteMonkey(self, _monkey:monkey, refreshHandeler= lambda *args, **kwargs: None, *,  refreshHArgs:tuple=(), refreshHKwargs:dict={}) -> None:
+        if mb.askokcancel("Delete Monkey", f"Are you sure you wish to delete {_monkey.name}"):
+            global monkeys, monkeyThreads
+            mIndex = monkeys.index(_monkey)
+            monkeys[mIndex].dead = True 
+            monkeys[mIndex].running = False
+            monkeys.pop(mIndex)
+            monkeyThreads.pop(mIndex)
+            refreshHandeler(*refreshHArgs, **refreshHKwargs)            
+        else: 
+            return
+        
     
 @cache
 def currentwInALLW(word: str) -> bool:
@@ -424,9 +449,12 @@ if __name__ == "__main__":
     monkeyThreads: list[Thread] = []
     
     HowManyMonkeys().mainloop()
-    Thread(monkeyHandeler(NUMOFMONKEYS)).start()
+    Thread(monkeyHandeler(NUMOFMONKEYS, noPrint=True)).start()
     
     MainWindowIME().mainloop()
 
     #TODO add a search
     #TODO add find sentence 
+    #TODO add creating more more monkeys functuality
+    #TODO add back a page button to all monkeys page
+    #TODO add functuality to save on exit 
