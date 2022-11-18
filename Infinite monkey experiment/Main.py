@@ -9,7 +9,7 @@ from random import choice
 from threading import Thread
 from time import sleep, time
 
-from allwords import ALLWORDS
+from IMEallWords import ALLWORDS
 
 
 @dataclass
@@ -445,13 +445,11 @@ def monkeyHandeler(numMonkeys: int, * , noPrint=False) -> None:
         monkeyThreads.append(Thread(target=monkeys[-1].guessWord))
         monkeyThreads[-1].start()
 
-ALLWORDS = [word for word in ALLWORDS if len(word) > 3 and len(word) < 10]
 ALLLETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L',
               'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
 SPACEFREQUENCY = 5
 for _ in range(SPACEFREQUENCY):
     ALLLETTERS.append(' ')
-
 
 if __name__ == "__main__":
     NUMOFMONKEYS:int = 1
