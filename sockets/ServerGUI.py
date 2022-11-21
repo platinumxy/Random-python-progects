@@ -8,7 +8,7 @@ from collections import deque
 from math import floor 
 from plyer import notification
 
-# Folowing code taken from folder and file handler see there for explaination and docs
+#Used to avoid issues coming from IDEs not running code in correct folder 
 def MoveTo(fileName:str) ->  str: return __RecursiveMoveTo(fileName, True)
 def __RecursiveMoveTo(fileName, __START=False):
     from os import getcwd, listdir, chdir, path 
@@ -18,13 +18,11 @@ def __RecursiveMoveTo(fileName, __START=False):
             if file == fileName:return cwd
         else :
             try :
-                chdir(cwd+"\\"+file)
-                found = __RecursiveMoveTo(fileName)
+                chdir(cwd+"\\"+file);found = __RecursiveMoveTo(fileName)
                 if found : return cwd 
             except NotADirectoryError: pass 
     if __START :raise FileNotFoundError()
     else: return False 
-#Used to avoid issues coming from IDEs not running code in correct folder 
 AppIcon = "AppIcon.ico"
 MoveTo(AppIcon)
 
