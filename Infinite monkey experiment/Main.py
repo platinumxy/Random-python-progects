@@ -1,6 +1,7 @@
 import tkinter as tk
 import tkinter.messagebox as mb
 import tkinter.ttk as ttk
+import tkinter.filedialog as FDialog
 from dataclasses import dataclass, field
 from functools import cache
 from math import floor
@@ -15,11 +16,11 @@ from IMEallWords import ALLWORDS
 @dataclass
 class Monkey:
     name: str = "Monkey"
+    running:bool = True
     words: list[str] = field(default_factory=list)
     largestWord = ""
     lenLargestWord = 0
     numWords = 0
-    running = True
     dead = False
     startTime = time()
     
@@ -27,15 +28,26 @@ class Monkey:
         return self
 
     def __next__(self) -> str:
-        try:
+        if hasattr(self, "loopCount"):
             self.loopCount = self.loopCount + 1
-        except AttributeError:
+        else:
             self.loopCount = 0
         if self.loopCount == len(self.words):
             del self.loopCount
             raise StopIteration
         return self.words[self.loopCount]
-
+    
+    def _updateVars(self) -> None:
+        self.numWords = 0
+        for word in self.words:
+            if word == "":
+                self.words.remove("")
+                continue
+            if len(word)>self.lenLargestWord:
+                self.largestWord = word
+                self.lenLargestWord = len(word)
+            self.numWords = self.numWords + 1
+            
     def guessWord(self, endlesslyGuess=True) -> None:
         """Guesses a word endlessly and adds it to the monkeys words"""
 
@@ -55,6 +67,8 @@ class Monkey:
                 
                 #To force the thread to give up the GIL
                 sleep(0.00001)
+                if self.dead :
+                    return
             else: 
                 if self.dead :
                     return 
@@ -73,21 +87,23 @@ class HowManyMonkeys:
     def __init__(self, ) -> None:
         self.mainWin = tk.Tk()
         self.mainWin.title('How many monkeys?')
-        self.mainWin.geometry('285x120')
+        self.mainWin.geometry('262x120')
         self.mainWin.resizable(False, False)
         self.mainWin.protocol("WM_DELETE_WINDOW", self._exit)
-        self.numMonk = tk.IntVar(value="")     
+        self.numMonk = tk.IntVar(value="")
         
-        ttk.Label(self.mainWin, text="How Many Monkeys").pack()
-        ttk.Label(self.mainWin, text="(Recomended no more than 5 for weak PCs)").pack()
+        ttk.Label(self.mainWin, text="How Many Monkeys").grid(row=0, column=0, columnspan=2)
+        ttk.Label(self.mainWin, text="(Recomended no more than 5 for weak PCs)").grid(row=1, column=0, columnspan=2)
         
         self.numMonkBox = ttk.Entry(self.mainWin, textvariable=self.numMonk)
-        self.numMonkBox.pack(ipady=5,pady=5)
+        self.numMonkBox.grid(row=2, column=0 ,ipady=5,pady=5, columnspan=2)
         self.numMonkBox.bind("<Return>", func=self._submit)
         self.numMonkBox.focus_set()
         
         self.sumbitButton = ttk.Button(self.mainWin, command=self._submit)
-        self.sumbitButton.pack(ipady=3)
+        self.sumbitButton.grid(row=3,column=0,ipady=3)
+        
+        ttk.Button(self.mainWin,text="Load From Save", command=self._loadFromFile).grid(row=3, column=1, ipady=3)
 
         self._updateButton()
         
@@ -118,7 +134,17 @@ class HowManyMonkeys:
                 return 
         else :
             self.mainWin.destroy()
-            
+    
+    def _loadFromFile(self):
+        global saveFile, saveFileData
+        saveFile = FDialog.askopenfilename(filetypes=[("Monkey Words Files","*.mw")])
+        if saveFile: # Check that a file was given 
+            with open(saveFile, "r") as sf:
+                saveFileData = sf.read()
+            self._exit(quietExit=True)
+        else: 
+            del saveFile
+
     def mainloop(self):
         self.mainWin.mainloop()
         
@@ -154,6 +180,7 @@ class MainWindowIME(tk.Tk):
         if self._currentFrameFunc == self.renderHomePage:
             self.NumWordsFound.config(text=str(numWords()))
             self.LargestWordFound.config(text=largestWord())
+            self.numMonkLabel.config(text=str(len(monkeyThreads)))
             
         elif self._currentFrameFunc == self.renderAllMonkeyData:
             for monkData in self.monkeysOnDisplay:
@@ -192,7 +219,48 @@ class MainWindowIME(tk.Tk):
         button.config(text="Pause", command=lambda: self._stopMRunning(activeM,button))
 
     def _exit(self) -> None: 
-        _exit(0)
+        global saveFile
+        try:
+            save = mb.askyesnocancel("Save Words", f"Save changes to :\n{saveFile}")
+        except NameError : 
+            save = mb.askyesnocancel("Save Words", "Save the monkeys and their words?")
+        if save == None:
+            return
+        if save :
+            Exit = self._save()
+            if not Exit:
+                return
+        _exit(0)      
+
+    def _save(self) -> bool:
+        global monkeys, monkeyThreads, saveFile
+        
+        def textFromMonkey(monkey:Monkey): return monkey.name+"|"+str(monkey.running) + "|" + "|".join(monkey.words) + "\n"
+        
+        FileExtentions = [("Monkey Words","*.mw"),("All Files","*.*")]
+        
+        try:
+            (open(saveFile, "r")).close()
+            _file = saveFile
+        except Exception as error:
+            if not isinstance(error, NameError):
+                mb.showerror((type(error).__name__), str(error))
+                return self._save()
+            
+            _file = FDialog.asksaveasfile(filetypes=FileExtentions,defaultextension=FileExtentions)
+            if _file == None:
+                return False
+            else: 
+                _file = _file.name
+        for monkey in monkeys : 
+            monkey.dead = True 
+        
+        with open(_file, "w") as file :
+            textToPrint=[textFromMonkey(monkey) for monkey in monkeys]
+            textToPrint[-1] = textToPrint[-1].removesuffix("\n") # removes the extra \n from the last monkey
+            file.writelines(textToPrint)
+
+        return True
 
     def swapFrame(self, render,*, _dontAddToBackLog=False, refresh=False, destroyerFunc=lambda *ANY: None, args:tuple=(), kwargs:dict={}) -> None :
         """Swaps the current _frame for the frame created with the given function
@@ -229,7 +297,8 @@ class MainWindowIME(tk.Tk):
         
         ttk.Label(self._frame, text="Number of monkeys").grid(row=1, column=0, pady=10)
         ttk.Label(self._frame, text= "➤").grid(row=1, column=1, pady=10)
-        ttk.Label(self._frame, text=str(len(monkeys))).grid(row=1, column=2, padx=self.LabPaddy["padx"], pady=10)
+        self.numMonkLabel = ttk.Label(self._frame, text=str(len(monkeyThreads)))
+        self.numMonkLabel.grid(row=1, column=2, padx=self.LabPaddy["padx"], pady=10)
         
         ttk.Label(self._frame, text="Num words found").grid(row=2, column=0, **self.ArrowPaddy)
         ttk.Label(self._frame, text= "➤").grid(row=2, column=1, **self.ArrowPaddy)
@@ -398,7 +467,6 @@ class MainWindowIME(tk.Tk):
             global monkeys, monkeyThreads
             mIndex = monkeys.index(_monkey)
             monkeys[mIndex].dead = True 
-            monkeys[mIndex].running = False
             monkeys.pop(mIndex)
             monkeyThreads.pop(mIndex)
             refreshHandeler(*refreshHArgs, **refreshHKwargs)            
@@ -408,7 +476,7 @@ class MainWindowIME(tk.Tk):
     def createNewMonkey(self, refreshFunc, rFArgs:tuple=(), rFKwargs:dict={}):
         global NUMOFMONKEYS, monkeyThreads, monkeys 
         NUMOFMONKEYS = NUMOFMONKEYS + 1 
-        monkeys.append(Monkey(f"Monkey {NUMOFMONKEYS}"))
+        monkeys.append(Monkey(f"Monkey - {NUMOFMONKEYS}"))
         monkeyThreads.append(Thread(target=monkeys[-1].guessWord))
         monkeyThreads[-1].start()
         refreshFunc(*rFArgs,**rFKwargs)
@@ -432,35 +500,59 @@ def largestWord() -> str :
             BigWord = monk.largestWord
     return BigWord
 
-def monkeyHandeler(numMonkeys: int, * , noPrint=False) -> None:
+def monkeyHandeler(numMonkeys: int) -> None:
     global monkeys, monkeyThreads
     
-    try: # Creates the variables if they are missing 
-        monkeys; monkeyThreads
-    except:
-        monkeys, monkeyThreads = [], [] 
+    if not ((hasattr(globals, "monkeys")) and (hasattr(globals, "monkeyThreads"))):
+        monkeys, monkeyThreads = [], [] # make sure that the monekys and monkeyThreads exsist
     
     for monkeyNum in range(numMonkeys):
         monkeys.append(Monkey(f"Monkey - {monkeyNum+1}"))
         monkeyThreads.append(Thread(target=monkeys[-1].guessWord))
         monkeyThreads[-1].start()
 
-ALLLETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L',
-              'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
-SPACEFREQUENCY = 5
-for _ in range(SPACEFREQUENCY):
-    ALLLETTERS.append(' ')
-
-if __name__ == "__main__":
-    NUMOFMONKEYS:int = 1
-    #As type annotations cannot be declared as global inside of functions 
-    monkeys: list[Monkey] = []
-    monkeyThreads: list[Thread] = []
+def fromSaveMonkeyHandeler(fileInfo) -> None:
+    """Format of MW file
+    MonkeyName|MonkeyStatus|monkeysWord|monkeysWord
+    MonkeyName|MonkeyStatus|monkeysWord|monkeysWord
+    """
+    global NUMOFMONKEYS, monkeys, monkeyThreads
+    fileInfo = fileInfo.split("\n")
+    NUMOFMONKEYS = len(fileInfo)
+    for line in fileInfo:
+        words = line.split("|")
+        monkeys.append(Monkey(words[0], (words[1]=="True"), words[2:]))
+        monkeys[-1]._updateVars()
+        monkeyThreads.append(Thread(target=monkeys[-1].guessWord))
+        monkeyThreads[-1].start()
+    
+def main():
+    global NUMOFMONKEYS
+    NUMOFMONKEYS = 1
     HowManyMonkeys().mainloop()
-    Thread(monkeyHandeler(NUMOFMONKEYS)).start()
+
+    try: 
+        global saveFile, saveFileData
+        if saveFileData =="":
+            mb.showerror("Error","Invalid File Selected")
+            del saveFile, saveFileData
+            main()
+        Thread(target=fromSaveMonkeyHandeler, args=(saveFileData,)).start()
+    except NameError:
+        Thread(target=monkeyHandeler, args=(NUMOFMONKEYS,)).start()
     
     MainWindowIME().mainloop()
+    
+ALLLETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L','M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
+SPACEFREQUENCY = 5
+for _ in range(SPACEFREQUENCY): ALLLETTERS.append(' ')
+#As type annotations cannot be declared as global inside of functions 
+monkeys: list[Monkey] = []
+monkeyThreads: list[Thread] = []
 
+
+if __name__ == "__main__":
+    main()
     #TODO add a search
     #TODO add find sentence 
-    #TODO add functuality to save on exit 
+    #TODO add menu bar 
