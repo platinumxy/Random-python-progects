@@ -155,6 +155,7 @@ class MainWindowIME(tk.Tk):
         self.startTime = time()
         self.timeSinceStart = 0
         self._maxMonkeysPerPage = 10
+        self._refreshRate = 300
 
     
         self.titleFont = ('Arial', 20, 'bold')
@@ -188,10 +189,10 @@ class MainWindowIME(tk.Tk):
         self.MonkeysMenu = tk.Menu(self.menu, tearoff=0)
         self.menu.add_cascade(menu=self.MonkeysMenu, label="Monekys")
         self.pausedAll = tk.IntVar()
-        self.pauseall = self.MonkeysMenu.add_checkbutton(label="Pause All", command=lambda:pauseAllMonkeys(self),
-                                                         variable=self.pausedAll,
-                                                         onvalue=1,
-                                                         offvalue=0)
+        self.MonkeysMenu.add_checkbutton(label="Pause All", command=lambda:pauseAllMonkeys(self),
+                                                         variable=self.pausedAll)
+        self.monkPriorty = tk.IntVar()
+        self.MonkeysMenu.add_checkbutton(label="Focus Resources On Monkeys", command=self.changeRefreshRate,variable=self.monkPriorty)
         self.MonkeysMenu.add_command(label="Start New Monkey", command=lambda:startNewMonkey(self))
         self.MonkeysMenu.add_command(label="Show Random Monkey", command=lambda:showRandomMonkey(self))
         self.protocol("WM_DELETE_WINDOW", self._exit)
@@ -234,7 +235,7 @@ class MainWindowIME(tk.Tk):
                                                        
         self.timeSinceStart = time() - self.startTime
         self.TimeSSLabel.config(text=str(floor(self.timeSinceStart)))
-        self.after(100, self._refresh)
+        self.after(self._refreshRate, self._refresh)
 
     def _stopMRunning(self,activeM:Monkey,button:ttk.Button):
         activeM.running=False
@@ -289,6 +290,11 @@ class MainWindowIME(tk.Tk):
             file.writelines(textToPrint)
 
         return True
+
+    def changeRefreshRate(self):
+        if self.monkPriorty.get(): self._refreshRate = 2000
+        else: self._refreshRate = 300
+            
 
     def swapFrame(self, render,*, _dontAddToBackLog=False, refresh=False, destroyerFunc=lambda *ANY: None, args:tuple=(), kwargs:dict={}) -> None :
         """Swaps the current _frame for the frame created with the given function
@@ -512,8 +518,6 @@ class MainWindowIME(tk.Tk):
     
 @cache
 def currentwInALLW(word: str) -> bool:
-    if not (2 < len(word) < 10):
-        return False
     return word[:-1] in ALLWORDS
 
 def numWords() -> int :
@@ -635,6 +639,4 @@ monkeyThreads: list[Thread] = []
 
 if __name__ == "__main__":
     main()
-    #TODO add a search
-    #TODO add find sentence 
     #TODO add menu bar 
