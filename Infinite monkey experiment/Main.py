@@ -155,7 +155,8 @@ class MainWindowIME(tk.Tk):
         self.startTime = time()
         self.timeSinceStart = 0
         self._maxMonkeysPerPage = 10
-        
+
+    
         self.titleFont = ('Arial', 20, 'bold')
         self.style = ttk.Style(self)
         self.style.configure('TLabel', font=('Arial', 11))
@@ -163,21 +164,47 @@ class MainWindowIME(tk.Tk):
         self.LabPaddy = {"padx":1, "pady":5}
         self.ArrowPaddy = {"pady":5}
         
+        
         self._frame:ttk.Frame = None 
         self._currentFrameFunc = None 
         self._travelHis: list[list[function, tuple, dict]] = [] 
         
         
+        self.menu = tk.Menu(self)
+        
+        self.FileMenu = tk.Menu(self.menu, tearoff=0)
+        self.menu.add_cascade(menu=self.FileMenu, label="File")
+        self.FileMenu.add_command(label="New ...", command=lambda:print("New"))
+        self.FileMenu.add_command(label="Open ...", command=lambda:print("Open"))
+        self.FMSaveCasscade = tk.Menu(self.FileMenu, tearoff=0 )
+        self.FMSaveCasscade.add_command(label="Save As ...", command=lambda:print("Save as"))
+        try :
+            global saveFile
+            saveFile
+            self.FMSaveCasscade.add_command(label="Save", command=lambda:print("Save"))
+        except NameError: pass 
+        self.FileMenu.add_cascade(menu=self.FMSaveCasscade, label="Save")
+        
+        self.MonkeysMenu = tk.Menu(self.menu, tearoff=0)
+        self.menu.add_cascade(menu=self.MonkeysMenu, label="Monekys")
+        self.pausedAll = tk.IntVar()
+        self.pauseall = self.MonkeysMenu.add_checkbutton(label="Pause All", command=lambda:pauseAllMonkeys(self),
+                                                         variable=self.pausedAll,
+                                                         onvalue=1,
+                                                         offvalue=0)
+        self.MonkeysMenu.add_command(label="Start New Monkey", command=lambda:startNewMonkey(self))
+        self.MonkeysMenu.add_command(label="Show Random Monkey", command=lambda:showRandomMonkey(self))
         self.protocol("WM_DELETE_WINDOW", self._exit)
         self.title('Infinite monkey experiment')
         self.geometry('700x500')
+        self.config(menu=self.menu)
         self.swapFrame(self.renderHomePage)
         self._refresh()
         
     def _refresh(self) -> None:
         
         #Important note all variables that might need updating start with a capital to differenchiate 
-        if self._currentFrameFunc == self.renderHomePage:
+        if self._currentFrameFunc == self.renderHomePage: # would use match case however does not work for backwards compat
             self.NumWordsFound.config(text=str(numWords()))
             self.LargestWordFound.config(text=largestWord())
             self.numMonkLabel.config(text=str(len(monkeyThreads)))
@@ -204,7 +231,6 @@ class MainWindowIME(tk.Tk):
                 self.MonkeyStatus.config(text="Active")
             else:
                 self.MonkeyStatus.config(text="Inactive")
-            
                                                        
         self.timeSinceStart = time() - self.startTime
         self.TimeSSLabel.config(text=str(floor(self.timeSinceStart)))
@@ -215,6 +241,8 @@ class MainWindowIME(tk.Tk):
         button.config(text="Resume", command=lambda: self._startMRunning(activeM,button))
     
     def _startMRunning(self,activeM:Monkey,button:ttk.Button):
+        if self.pausedAll.get() :
+            self.pausedAll.set(0)
         activeM.running=True
         button.config(text="Pause", command=lambda: self._stopMRunning(activeM,button))
 
@@ -291,7 +319,7 @@ class MainWindowIME(tk.Tk):
         self._frame.pack()
         render(*args, **kwargs)
 
-    def renderHomePage(self) -> None:
+    def renderHomePage(self, *args, **kwargs) -> None:
         ttk.Label(self._frame, text="The Infinite Monkey Experiment", font=self.titleFont).grid(row=0, column=0, columnspan=3, pady=20)
         
         
@@ -316,7 +344,7 @@ class MainWindowIME(tk.Tk):
         self.BackHomeTimeSinceStart(row=5, columnSpan=3)
     
     def renderAllMonkeyData(self, *args, **kwargs) -> None:
-        
+        self.pauseResumeB = []
         #to force the destroyer function to be the correct function so when entering this function from the back button otherwise it wont run
         self.destroyerFunc = self.delRenderAllMonkeyData
         def monkeyInfo(row,i):
@@ -331,12 +359,12 @@ class MainWindowIME(tk.Tk):
             self.monkeysOnDisplay[-1][3].grid(row=row,column=3) 
             
             ttk.Button(self._frame, text="More Info", command=lambda:self.swapFrame(self.renderSpecificMonkeyInfo, destroyerFunc=self.delRenderSpecificMonkeyInfo,args=(monkeys[i],))).grid(row=row, column=4)
-            pauseResumeB = ttk.Button(self._frame)
+            self.pauseResumeB.append(ttk.Button(self._frame))
             if monkeys[i].running :
-                pauseResumeB.config(text="Pause", command=lambda: self._stopMRunning(monkeys[i], pauseResumeB))
+                self.pauseResumeB[-1].config(text="Pause", command=lambda: self._stopMRunning(monkeys[i], self.pauseResumeB[-1]))
             else:
-                pauseResumeB.config(text="Resume", command=lambda: self._startMRunning(monkeys[i],pauseResumeB))
-            pauseResumeB.grid(row=row, column=5)
+                self.pauseResumeB[-1].config(text="Resume", command=lambda: self._startMRunning(monkeys[i],self.pauseResumeB[-1]))
+            self.pauseResumeB[-1].grid(row=row, column=5)
             ttk.Button(self._frame, text="Delete", command=lambda: self.deleteMonkey(monkeys[i], self.refreshAllMonkData)).grid(row=row, column=6)
 
         if not hasattr(self, "numMonkAlreadyLoaded"): 
@@ -473,13 +501,14 @@ class MainWindowIME(tk.Tk):
         else: 
             return
         
-    def createNewMonkey(self, refreshFunc, rFArgs:tuple=(), rFKwargs:dict={}):
+    def createNewMonkey(self, refreshFunc, rFArgs:tuple=(), rFKwargs:dict={}, *args, **kwargs):
         global NUMOFMONKEYS, monkeyThreads, monkeys 
         NUMOFMONKEYS = NUMOFMONKEYS + 1 
         monkeys.append(Monkey(f"Monkey - {NUMOFMONKEYS}"))
         monkeyThreads.append(Thread(target=monkeys[-1].guessWord))
         monkeyThreads[-1].start()
-        refreshFunc(*rFArgs,**rFKwargs)
+        self.pausedAll.set(0)
+        refreshFunc(*rFArgs,*args,**kwargs,**rFKwargs)
     
 @cache
 def currentwInALLW(word: str) -> bool:
@@ -526,6 +555,58 @@ def fromSaveMonkeyHandeler(fileInfo) -> None:
         monkeyThreads.append(Thread(target=monkeys[-1].guessWord))
         monkeyThreads[-1].start()
     
+def openNewMWFile(window:MainWindowIME):
+    """Handles the User attempting to open a new file"""
+    #needs 
+    #pop up asking if wants to save (could latch onto save file, use empty except to catch _exit)
+    #destroy window
+    #recreate monkey from save 
+    #re-create window
+
+def newMonkeys(window:MainWindowIME):
+    """Handles the user wanting to create a new set of monkeys"""
+    #pop up asking if wants to save (could latch onto save file, use empty except to catch _exit)
+    #Destroy all monekys 
+    #Create Pop up box that asks how many moneyks 
+    #Start that many monkeys 
+    #Refresh all pages, and start time
+
+def startNewMonkey(window:MainWindowIME):
+    """Starts a new monkey from menu bar"""
+    #Runs the add new monkey command, just ignores the refresh func if on home screen 
+    if window._currentFrameFunc == window.renderAllMonkeyData:
+        window.createNewMonkey(window.refreshAllMonkData)
+    elif window._currentFrameFunc == window.renderSpecificMonkeyInfo:
+        window.createNewMonkey(window.refreshSpesMonkInfo)
+    else: 
+        window.createNewMonkey(window._currentFrameFunc)
+        
+def pauseAllMonkeys(window:MainWindowIME):
+    """Pauses all monkeys running"""
+    global monkeys
+    def buttonConfig(button, i, text, command):
+        if window.numMonkAlreadyLoaded%window._maxMonkeysPerPage == 0:i = (window.numMonkAlreadyLoaded - window._maxMonkeysPerPage) + i
+        else:i = (window.numMonkAlreadyLoaded - (window.numMonkAlreadyLoaded%window._maxMonkeysPerPage)) + i
+        button.config(text=text, command=lambda: command(monkeys[i], button))
+        
+    if not (window.pausedAll.get()):
+        for monkey in monkeys :
+            monkey.running = True
+        if window._currentFrameFunc == window.renderAllMonkeyData : 
+            for i, button in enumerate(window.pauseResumeB): buttonConfig(window.pauseResumeB[i], i, "Pause", window._stopMRunning)
+    else :
+        for monkey in monkeys :
+            monkey.running = False 
+        if window._currentFrameFunc == window.renderAllMonkeyData:
+            for i, button in enumerate(window.pauseResumeB): buttonConfig(window.pauseResumeB[i], i, "Resume", window._startMRunning)
+
+def showRandomMonkey(window:MainWindowIME):
+    """Takes the user to a random monkey page"""
+    global monkeys 
+    if not (window._travelHis):
+        window._travelHis.append([window.renderHomePage,(),{}])
+    window.swapFrame(window.renderSpecificMonkeyInfo, destroyerFunc=window.delRenderSpecificMonkeyInfo,args=(choice(monkeys),))
+
 def main():
     global NUMOFMONKEYS
     NUMOFMONKEYS = 1
@@ -549,6 +630,7 @@ for _ in range(SPACEFREQUENCY): ALLLETTERS.append(' ')
 #As type annotations cannot be declared as global inside of functions 
 monkeys: list[Monkey] = []
 monkeyThreads: list[Thread] = []
+
 
 
 if __name__ == "__main__":
