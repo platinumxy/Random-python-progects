@@ -89,7 +89,7 @@ class HowManyMonkeys:
         self.mainWin.title('How many monkeys?')
         self.mainWin.geometry('262x120')
         self.mainWin.resizable(False, False)
-        self.mainWin.protocol("WM_DELETE_WINDOW", self._exit)
+        self.mainWin.protocol("WM_DELETE_WINDOW", self.exit)
         self.numMonk = tk.IntVar(value="")
         
         ttk.Label(self.mainWin, text="How Many Monkeys").grid(row=0, column=0, columnspan=2)
@@ -124,12 +124,12 @@ class HowManyMonkeys:
                 return
         except:
             return
-        self._exit(quietExit=True)
+        self.exit(quietExit=True)
     
-    def _exit(self, *, quietExit=False):
+    def exit(self, *, quietExit=False):
         if not quietExit :
             if mb.askyesno("Infinite Monkey Experiment", "Are you sure you want to quit?") :
-               _exit(0)
+               exit(0)
             else: 
                 return 
         else :
@@ -141,7 +141,7 @@ class HowManyMonkeys:
         if saveFile: # Check that a file was given 
             with open(saveFile, "r") as sf:
                 saveFileData = sf.read()
-            self._exit(quietExit=True)
+            self.exit(quietExit=True)
         else: 
             del saveFile
 
@@ -175,15 +175,16 @@ class MainWindowIME(tk.Tk):
         
         self.FileMenu = tk.Menu(self.menu, tearoff=0)
         self.menu.add_cascade(menu=self.FileMenu, label="File")
-        self.FileMenu.add_command(label="New ...", command=lambda:print("New"))
-        self.FileMenu.add_command(label="Open ...", command=lambda:print("Open"))
+        self.FileMenu.add_command(label="New ...", command=lambda:newMonkeys(self))
+        self.FileMenu.add_command(label="Open ...", command=lambda:openNewMWFile(self))
         self.FMSaveCasscade = tk.Menu(self.FileMenu, tearoff=0 )
-        self.FMSaveCasscade.add_command(label="Save As ...", command=lambda:print("Save as"))
+        self.FMSaveCasscade.add_command(label="Save As ...", command=lambda:self._save(killMonkeys=False,saveAs=True))
         try :
             global saveFile
             saveFile
-            self.FMSaveCasscade.add_command(label="Save", command=lambda:print("Save"))
-        except NameError: pass 
+            self.FMSaveCasscade.add_command(label="Save", command=lambda:self._save(killMonkeys=False))
+            self.SaveAddedToMenu = True 
+        except NameError: self.SaveAddedToMenu = False 
         self.FileMenu.add_cascade(menu=self.FMSaveCasscade, label="Save")
         
         self.MonkeysMenu = tk.Menu(self.menu, tearoff=0)
@@ -247,7 +248,7 @@ class MainWindowIME(tk.Tk):
         activeM.running=True
         button.config(text="Pause", command=lambda: self._stopMRunning(activeM,button))
 
-    def _exit(self) -> None: 
+    def _exit(self,softExit=False) -> None: 
         global saveFile
         try:
             save = mb.askyesnocancel("Save Words", f"Save changes to :\n{saveFile}")
@@ -259,35 +260,52 @@ class MainWindowIME(tk.Tk):
             Exit = self._save()
             if not Exit:
                 return
-        _exit(0)      
+        if softExit:
+            exit(0)
+        else: _exit(0)      
 
-    def _save(self) -> bool:
+    def _save(self, killMonkeys=True, saveAs=False) -> bool:
         global monkeys, monkeyThreads, saveFile
         
-        def textFromMonkey(monkey:Monkey): return monkey.name+"|"+str(monkey.running) + "|" + "|".join(monkey.words) + "\n"
+        def textFromMonkey(monkey:Monkey): 
+            return monkey.name+"|"+str(monkey.running) + "|" + "|".join(monkey.words) + "\n"
         
         FileExtentions = [("Monkey Words","*.mw"),("All Files","*.*")]
-        
-        try:
-            (open(saveFile, "r")).close()
-            _file = saveFile
-        except Exception as error:
-            if not isinstance(error, NameError):
-                mb.showerror((type(error).__name__), str(error))
-                return self._save()
-            
+        if not saveAs :
+            try:
+                (open(saveFile, "r")).close()
+                _file = saveFile
+            except Exception as error:
+                if not isinstance(error, NameError):
+                    mb.showerror((type(error).__name__), str(error))
+                    return self._save()
+
+                _file = FDialog.asksaveasfile(filetypes=FileExtentions,defaultextension=FileExtentions)
+                if _file == None:
+                    return False
+                else: 
+                    _file = _file.name
+        if saveAs:
             _file = FDialog.asksaveasfile(filetypes=FileExtentions,defaultextension=FileExtentions)
             if _file == None:
                 return False
             else: 
                 _file = _file.name
-        for monkey in monkeys : 
-            monkey.dead = True 
+        saveFile = _file
+        
+        if not self.SaveAddedToMenu : 
+            self.FMSaveCasscade.add_command(label="Save", command=lambda:self._save(False))
+            self.SaveAddedToMenu = True  
+        if killMonkeys:
+            for monkey in monkeys : 
+                monkey.dead = True 
         
         with open(_file, "w") as file :
-            textToPrint=[textFromMonkey(monkey) for monkey in monkeys]
-            textToPrint[-1] = textToPrint[-1].removesuffix("\n") # removes the extra \n from the last monkey
-            file.writelines(textToPrint)
+            if len(monkeys) == 0 : file.write("")
+            else:
+                textToPrint=[textFromMonkey(monkey) for monkey in monkeys]
+                textToPrint[-1] = textToPrint[-1].removesuffix("\n") # removes the extra \n from the last monkey
+                file.writelines(textToPrint)
 
         return True
 
@@ -295,7 +313,6 @@ class MainWindowIME(tk.Tk):
         if self.monkPriorty.get(): self._refreshRate = 2000
         else: self._refreshRate = 300
             
-
     def swapFrame(self, render,*, _dontAddToBackLog=False, refresh=False, destroyerFunc=lambda *ANY: None, args:tuple=(), kwargs:dict={}) -> None :
         """Swaps the current _frame for the frame created with the given function
 
@@ -551,6 +568,8 @@ def fromSaveMonkeyHandeler(fileInfo) -> None:
     """
     global NUMOFMONKEYS, monkeys, monkeyThreads
     fileInfo = fileInfo.split("\n")
+    while fileInfo.count(""):
+        fileInfo.remove("")
     NUMOFMONKEYS = len(fileInfo)
     for line in fileInfo:
         words = line.split("|")
@@ -562,18 +581,60 @@ def fromSaveMonkeyHandeler(fileInfo) -> None:
 def openNewMWFile(window:MainWindowIME):
     """Handles the User attempting to open a new file"""
     #needs 
-    #pop up asking if wants to save (could latch onto save file, use empty except to catch _exit)
+    #pop up asking if wants to save (could latch onto save file, use empty except to catch exit)
     #destroy window
     #recreate monkey from save 
     #re-create window
+    global monkeys, monkeyThreads, saveFile, saveFileData
+    try:
+        save = mb.askyesnocancel("Save Words", f"Save changes to :\n{saveFile}")
+    except NameError : 
+        save = mb.askyesnocancel("Save Words", "Save the monkeys and their words?")
+    if save == None:
+        return
+    if save :
+        Exit = window._save(killMonkeys=False)
+        if not Exit:
+            return
+    mb.showinfo("Open New File", "Choose File To Open")
+    NsaveFile = FDialog.askopenfilename(filetypes=[("Monkey Words Files","*.mw")])
+    if NsaveFile:
+        for monkey in monkeys : monkey.dead
+        monkeys = [] 
+        monkeyThreads = [] 
+        saveFile = NsaveFile
+        with open(saveFile) as file: 
+            Thread(target=fromSaveMonkeyHandeler, args=(file.read(),)).start()
+        del NsaveFile
+        try : del saveFileData
+        except : pass 
+        if not window.SaveAddedToMenu:
+            window.SaveAddedToMenu = True 
+            window.FMSaveCasscade.add_command(label="Save", command=lambda:window._save(False))
+    
 
 def newMonkeys(window:MainWindowIME):
-    """Handles the user wanting to create a new set of monkeys"""
-    #pop up asking if wants to save (could latch onto save file, use empty except to catch _exit)
+    """Handles the user wanting to create a new set of monkeys""" 
+    #pop up asking if wants to save (could latch onto save file, use empty except to catch exit)
     #Destroy all monekys 
     #Create Pop up box that asks how many moneyks 
     #Start that many monkeys 
     #Refresh all pages, and start time
+    try :
+        exitCode = window._exit(softExit=True) 
+        if exitCode==None: 
+            return 
+    except: #to stop the program ending 
+        window.destroy()
+        
+        global saveFile, saveFileData, monkeys, monkeyThreads
+        del window, monkeys, monkeyThreads
+        try: 
+            del saveFile
+            del saveFileData
+        except: pass 
+        monkeys, monkeyThreads = [], []  
+        main()
 
 def startNewMonkey(window:MainWindowIME):
     """Starts a new monkey from menu bar"""
@@ -639,4 +700,3 @@ monkeyThreads: list[Thread] = []
 
 if __name__ == "__main__":
     main()
-    #TODO add menu bar 
