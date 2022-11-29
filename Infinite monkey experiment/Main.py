@@ -89,7 +89,7 @@ class HowManyMonkeys:
         self.mainWin.title('How many monkeys?')
         self.mainWin.geometry('262x120')
         self.mainWin.resizable(False, False)
-        self.mainWin.protocol("WM_DELETE_WINDOW", self.exit)
+        self.mainWin.protocol("WM_DELETE_WINDOW", self._exit)
         self.numMonk = tk.IntVar(value="")
         
         ttk.Label(self.mainWin, text="How Many Monkeys").grid(row=0, column=0, columnspan=2)
@@ -124,12 +124,12 @@ class HowManyMonkeys:
                 return
         except:
             return
-        self.exit(quietExit=True)
+        self._exit(quietExit=True)
     
-    def exit(self, *, quietExit=False):
+    def _exit(self, *, quietExit=False):
         if not quietExit :
             if mb.askyesno("Infinite Monkey Experiment", "Are you sure you want to quit?") :
-               exit(0)
+               _exit(0)
             else: 
                 return 
         else :
