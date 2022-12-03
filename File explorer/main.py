@@ -1,0 +1,244 @@
+import os
+import tkinter as tk
+import tkinter.messagebox as mb
+import tkinter.ttk as ttk
+from winreg import (HKEY_LOCAL_MACHINE, ConnectRegistry, HKEYType, OpenKey,
+                    QueryValueEx)
+from math import floor
+from datetime import datetime
+
+if os.name == "nt":
+    import win32api, win32con, pywintypes
+
+class ExtensionQuery:
+    def __init__(self):
+        """creates the base key and conncets its self to the regestery"""
+        self.base: str = r"SOFTWARE\Classes"
+        self.reg: HKEYType = ConnectRegistry(None, HKEY_LOCAL_MACHINE)
+
+    def _getValueFromClass(self, classStr: str) -> str:
+        """retreives the value of a key from the regestery"""
+        path: str = fr"{self.base}\{classStr}"
+        key: HKEYType = OpenKey(self.reg, path)
+        valueTuple: tuple[str, int] = QueryValueEx(key, "")
+        return valueTuple[0]
+
+    def getApplicationName(self, ext: str) -> str:
+        """returns the file name by returning the value of the key from the regestry"""
+        if not ext :
+            return "Folder"
+        try: 
+            return self._getValueFromClass(self._getValueFromClass(ext))
+        except FileNotFoundError:
+            return f"{ext.removeprefix('.')} File"
+        
+    def __call__(self, ext: str) -> str:
+        """Allias for self.getApplticationName"""
+        return self.getApplicationName(ext)
+
+
+#Creates file constants 
+USERP = os.environ["USERPROFILE"]
+APPDATAP = os.environ["APPDATA"]
+ROOT = os.environ["SYSTEMDRIVE"]
+getFileExtentionName = ExtensionQuery()
+
+
+class DefaultWindow:...#to stop syntax error from ide
+
+class _BaseWindow:
+    NAME = "Window"
+    def __init__(self, path: str, parent: DefaultWindow = None) -> None:
+        self.root = self.setup() if parent is None else parent._frame
+        self.active = path
+        self.showPage()
+        self._refresh()
+    
+    def mainloop(self):
+        self.root.mainloop()
+
+    def setup(self):
+        root = tk.Tk()
+        root.protocol("WM_DELETE_WINDOW", exit)
+        root.title()
+        root.geometry('700x500')
+        return root
+    
+    def showPage(self):...
+    def _refresh(self):...
+
+
+class folderExplorer(_BaseWindow):
+    def __init__(self, path: str, parent: DefaultWindow = None) -> None:
+        super().__init__(path, parent)
+        self.itemSelected = False
+    def showPage(self):
+        if not hasattr(self, "_pathBox"):
+            self.row = 0
+            self.pathBar()
+            self.showTreeBox()
+            
+        self.updateVars()
+
+    def showTreeBox(self):
+        tbColumns = ("file_name","file_type","creation_time","last_modified","file_size")
+        self.treeBox = ttk.Treeview(self.root, columns=tbColumns, show="headings")
+        self.treeBox.heading('file_name', text='Name')
+        self.treeBox.heading('file_type', text='Type')
+        self.treeBox.heading('creation_time', text='Date Created')
+        self.treeBox.heading('last_modified', text='Date Modified')
+        self.treeBox.heading('file_size', text='Size')
+        self.treeBox.bind("<Return>", lambda*event: self.updatePath(fromTB=True))
+        self.treeBox.grid(row=self.row, column=0, columnspan=2)
+        self.row+=1
+        
+    def pathBar(self):
+        ttk.Button(self.root, text="❰", command=self.upDir).grid(row=self.row, column=0)
+        
+        self.pathBox = tk.StringVar(self.root, self.active)
+        self._pathBox = ttk.Entry(self.root, textvariable=self.pathBox)
+        self._pathBox.bind("<Return>", lambda *any: self.updatePath(updateFromInput=True), )
+        self._pathBox.grid(row=self.row, column=1, columnspan = 4, pady = 1,ipadx=200)
+        self.row += 1 
+        ttk.Separator(self.root, orient='horizontal').grid(row=self.row, column=0, columnspan = 5, ipadx=300,pady=5)
+        self.row += 1 
+    
+    def updatePath(self, *, updateFromInput: bool = False, newpath: str = "", fromTB:bool=False):
+        if updateFromInput:
+            if os.path.isdir(newpath := self.pathBox.get().removesuffix("\\")): 
+                self.oldActive = self.active
+                self.active = newpath
+            elif os.path.isfile(newpath):
+                try : #checks for parient class
+                    mainWin = self.root.master
+                    mainWin.changeFrame = {
+                        "type": 'openFile',
+                        "path": newpath
+                    }
+                except Exception:
+                    fileActions["openFile"](newpath)  
+            else : 
+                mb.showerror("Invalid Path", "Cannot open specified path")
+                self.pathBox.set(self.active)
+                return
+        else:
+            if fromTB:
+                newpath = self.active + "\\"+self.treeBox.item((selected := self.treeBox.selection()))["values"][0]
+            self.oldActive = self.active
+            self.active = newpath
+            self.pathBox.set(self.active)
+        self.showPage()
+
+    def _timeOutItemSelected(self): self.itemSelected = False
+    
+    def updateVars(self):
+        self.treeBox.delete(*self.treeBox.get_children())
+        try: 
+            for file in fileAndFoldersInPath(self.active+"\\" if self.active[-1]==":" else self.active) : #acount for drives
+                self.treeBox.insert('', tk.END, values=(file["FULLNAME"], file["EXTENTION NAME"], file["CREATION DATE"], file["MODIFICATION DATE"], file["ROUNDED SIZE"]))
+        except NotADirectoryError:
+            mb.showerror("FIlE ERROR",f"Windows does not recognise file path\n{self.active}")
+            self.active = self.oldActive 
+            self.pathBox.set(self.active)
+            self.updateVars()
+            
+    def upDir(self):
+        if len(newpath := self.active.split("\\")) <= 1: 
+            return
+        self.updatePath(newpath="\\".join(newpath[:-1]))
+
+class DefaultWindow(tk.Tk):
+    def __init__(self, startingDir=USERP):
+        super().__init__()
+        self._frame = ttk.Frame()
+        self._frame.pack()
+        self.changeFrame:dict = {} 
+        folderExplorer(path=startingDir, parent=self)
+        self._refresh()
+    
+    def _refresh(self):
+        if self.changeFrame:
+            """change Frame layout
+            {
+                type:['openFile', 'openDir']
+                path:(path)
+                }
+                """
+                
+            fileActions[self.changeFrame["type"]](path=self.changeFrame["path"], parent=self)
+            self.changeFrame = {}    
+        self.after(10, self._refresh)
+
+def getFileType(file) -> tuple[str, str]:
+    """Returns the file name and extention
+
+    Args:
+        file (str): The path to the requested file i.e. C:\\test\\Test.exe
+
+    Returns:
+        tuple(FILENAME, .FILE EXTENTION) 
+    """
+    return os.path.splitext(file)
+
+def openFileWithSytem(file:str) -> bool:
+    try :
+        with open(file) : pass 
+        os.startfile(file)
+        return True 
+    except PermissionError :
+        mb.showerror("Could not open file", f"Was unable to open\n'{file}'\nBecause you do not have permition to access this file\nTry running this program as administrator to bipass this")
+    except Exception  as error:
+        mb.showerror("Could not open file", f"Was unable to open\n'{file}'\nBecause {error}")
+    return False
+
+def getFileSize(pathToFile:str)-> tuple[int,str]:
+    fileSizeMagnetude = {0:"B",10:"Kb",20:"Mb",30:"Gb",40:"Tb"}
+    trueSize = os.path.getsize(pathToFile)
+    for powerofTen in range(10,60,10):
+        if trueSize/(2**powerofTen)<10: 
+            return trueSize, f"{round(trueSize/(2**(powerofTen-10)))} {fileSizeMagnetude[powerofTen-10]}"
+
+def fileAndFoldersInPath(path: str, showHidden=False) -> list[dict]:
+    """Returns information on all of the files and folders in a provided folder
+    
+    Args:
+        path (str): The path to the folder you want to scan 
+
+    Returns:
+        list[dict]: list of all files in the dir in dicts which contain the file's NAME, TYPE(FILE/FOLDER) and PATH
+    """
+    return [
+        {
+            "NAME":getFileType(path+"\\"+file)[0],
+            "FULLNAME":file,
+            "EXTENTION":getFileType(path+"\\"+file)[1],
+            "EXTENTION NAME":getFileExtentionName(getFileType(path+"\\"+file)[1]),
+            "TYPE": "FILE" if os.path.isfile(path + file) else "FOLDER",
+            "TRUE SIZE": getFileSize(path+"\\"+file)[0], 
+            "ROUNDED SIZE": getFileSize(path+"\\"+file)[1],
+            "CREATION DATE":datetime.fromtimestamp(os.path.getctime(path+"\\"+file)).strftime("%d/%m/%y %H:%M"),
+            "MODIFICATION DATE":datetime.fromtimestamp(os.path.getmtime(path+"\\"+file)).strftime("%d/%m/%y %H:%M"),
+            "PATH":path+"\\"+file
+            } 
+        for file in os.listdir(path) if not fileIsHidden(path+"\\"+file)]
+
+def fileIsHidden(path:str) -> bool:
+    if os.name != "nt":
+        return path.startswith('.')
+    try :
+        atter = win32api.GetFileAttributes(path)
+    except pywintypes.error:
+        return True
+    return atter & (win32con.FILE_ATTRIBUTE_HIDDEN | win32con.FILE_ATTRIBUTE_SYSTEM)
+    
+fileActions = {
+    "openDir": folderExplorer,
+}
+inProgramEditors = {
+    ".txt"
+}
+if __name__ == "__main__":
+    #openFileWithSytem("C:\\DumpStack.log")
+    DefaultWindow().mainloop()
+    #TODO see if fil
+
