@@ -48,6 +48,7 @@ class DefaultWindow:...#to stop syntax error from ide
 
 class _BaseWindow:
     NAME = "Window"
+    SIZE = "700x500"
     def __init__(self, path: str, parent: DefaultWindow = None) -> None:
         self.root = self.setup() if parent is None else parent._frame
         self.active = path
@@ -60,8 +61,8 @@ class _BaseWindow:
     def setup(self):
         root = tk.Tk()
         root.protocol("WM_DELETE_WINDOW", exit)
-        root.title()
-        root.geometry('700x500')
+        root.title(self.NAME)
+        root.geometry(self.SIZE)
         return root
     
     def showPage(self):...
@@ -78,7 +79,41 @@ class folderExplorer(_BaseWindow):
             self.pathBar()
             self.showTreeBox()
             
+            ttk.Button(self.root, text="Create Folder", command=lambda:print("Create Folder")).grid(row=self.row, column=4)
+            self.row+=1
+            ttk.Button(self.root, text="Create File", command=lambda:print("Create File")).grid(row=self.row, column=4)
+            self.row+=1
+            ttk.Button(self.root, text="Delete Selected", command=lambda:print("Del Select")).grid(row=self.row, column=4)
+            self.row+=1
+            ttk.Button(self.root, text="Rename Selected", command=lambda:print("Re Select")).grid(row=self.row, column=4)
+            self.row+=1
+            ttk.Button(self.root, text="Open Selected", command=lambda: self.openSelected()).grid(row=self.row, column=4)
+            self.row+=1
+            
         self.updateVars()
+
+    def openSelected(self):
+        try: 
+            selection = self.active + "\\"+self.treeBox.item((selected := self.treeBox.selection()))["values"][0]
+        except IndexError:
+            return
+        if os.path.isdir(selection):
+            self.updatePath(fromTB=True)
+            return 
+        if getFileType(selection)[1] in inProgramEditors:
+            try : #checks for parient class
+                    mainWin = self.root.master
+                    mainWin.changeFrame = {
+                        "type": 'openFile',
+                        "path": selection,
+                        "oldPath": self.active
+                    }
+            except Exception:
+                fileActions["openFile"](selection)
+            return
+        if mb.askyesno("Open File", "Open file in external program"):
+            os.startfile(selection)
+              
 
     def showTreeBox(self):
         tbColumns = ("file_name","file_type","creation_time","last_modified","file_size")
@@ -88,8 +123,9 @@ class folderExplorer(_BaseWindow):
         self.treeBox.heading('creation_time', text='Date Created')
         self.treeBox.heading('last_modified', text='Date Modified')
         self.treeBox.heading('file_size', text='Size')
-        self.treeBox.bind("<Return>", lambda*event: self.updatePath(fromTB=True))
-        self.treeBox.grid(row=self.row, column=0, columnspan=2)
+        self.treeBox.bind("<Return>", lambda*event: self.openSelected())
+        self.treeBox.grid(row=self.row, column=0, columnspan=2, rowspan=10)
+        ttk.Scrollbar(self.root, orient="vertical", command=self.treeBox.yview).grid(row=self.row, column=3, rowspan=10, ipady=100)
         self.row+=1
         
     def pathBar(self):
@@ -98,9 +134,9 @@ class folderExplorer(_BaseWindow):
         self.pathBox = tk.StringVar(self.root, self.active)
         self._pathBox = ttk.Entry(self.root, textvariable=self.pathBox)
         self._pathBox.bind("<Return>", lambda *any: self.updatePath(updateFromInput=True), )
-        self._pathBox.grid(row=self.row, column=1, columnspan = 4, pady = 1,ipadx=200)
+        self._pathBox.grid(row=self.row, column=1, columnspan = 3, pady=1,ipadx=200)
         self.row += 1 
-        ttk.Separator(self.root, orient='horizontal').grid(row=self.row, column=0, columnspan = 5, ipadx=300,pady=5)
+        ttk.Separator(self.root, orient='horizontal').grid(row=self.row, column=0, columnspan = 5, ipadx=400,pady=5)
         self.row += 1 
     
     def updatePath(self, *, updateFromInput: bool = False, newpath: str = "", fromTB:bool=False):
@@ -113,7 +149,8 @@ class folderExplorer(_BaseWindow):
                     mainWin = self.root.master
                     mainWin.changeFrame = {
                         "type": 'openFile',
-                        "path": newpath
+                        "path": newpath,
+                        "oldPath": self.active
                     }
                 except Exception:
                     fileActions["openFile"](newpath)  
@@ -239,6 +276,7 @@ inProgramEditors = {
 }
 if __name__ == "__main__":
     #openFileWithSytem("C:\\DumpStack.log")
-    DefaultWindow().mainloop()
+    dw = DefaultWindow()
+    dw.mainloop()
     #TODO see if fil
 
