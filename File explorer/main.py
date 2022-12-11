@@ -41,8 +41,7 @@ class ExtensionQuery:
 USERP = os.environ["USERPROFILE"]
 APPDATAP = os.environ["APPDATA"]
 ROOT = os.environ["SYSTEMDRIVE"]
-getFileExtentionName = ExtensionQuery()
-
+getFileExtentionName:ExtensionQuery = ExtensionQuery()
 
 class DefaultWindow:...#to stop syntax error from ide
 
@@ -79,22 +78,35 @@ class folderExplorer(_BaseWindow):
             self.pathBar()
             self.showTreeBox()
             
-            ttk.Button(self.root, text="Create Folder", command=lambda:print("Create Folder")).grid(row=self.row, column=4)
-            self.row+=1
-            ttk.Button(self.root, text="Create File", command=lambda:print("Create File")).grid(row=self.row, column=4)
-            self.row+=1
-            ttk.Button(self.root, text="Delete Selected", command=lambda:print("Del Select")).grid(row=self.row, column=4)
-            self.row+=1
-            ttk.Button(self.root, text="Rename Selected", command=lambda:print("Re Select")).grid(row=self.row, column=4)
-            self.row+=1
-            ttk.Button(self.root, text="Open Selected", command=lambda: self.openSelected()).grid(row=self.row, column=4)
-            self.row+=1
+            self.AddFuncButton("Create Folder",print)
+            self.AddFuncButton("Create File",print)
+            self.AddFuncButton("Delete Selected",self.deleteSelected)
+            self.AddFuncButton("Rename Selected","Re Select")
+            self.AddFuncButton("Open Selected",self.openSelected)
             
         self.updateVars()
 
+    def AddFuncButton(self,text:str,command):
+        ttk.Button(self.root, text=text, command=lambda:command()).grid(row=self.row, column=4)
+        self.row+=1
+
+    def deleteSelected(self):
+        try: 
+            selection = self.active + "\\"+self.treeBox.item((self.treeBox.selection()))["values"][0]
+        except IndexError:
+            return
+        if mb.askyesnocancel("Delete Selected", "Are you sure you want to delete\n"+selection):
+            try: 
+                os.remove(selection)
+                self.updateVars()
+            except PermissionError :
+                mb.showerror("Permissions Error", "Unable to delete file as permissions are to low")
+            except Exception as err:
+                mb.showerror("Error deleting file",f"issue deleting file \n{err}")
+
     def openSelected(self):
         try: 
-            selection = self.active + "\\"+self.treeBox.item((selected := self.treeBox.selection()))["values"][0]
+            selection = self.active + "\\"+self.treeBox.item((self.treeBox.selection()))["values"][0]
         except IndexError:
             return
         if os.path.isdir(selection):
@@ -160,19 +172,17 @@ class folderExplorer(_BaseWindow):
                 return
         else:
             if fromTB:
-                newpath = self.active + "\\"+self.treeBox.item((selected := self.treeBox.selection()))["values"][0]
+                newpath = self.active + "\\"+self.treeBox.item((self.treeBox.selection()))["values"][0]
             self.oldActive = self.active
             self.active = newpath
             self.pathBox.set(self.active)
         self.showPage()
-
-    def _timeOutItemSelected(self): self.itemSelected = False
     
     def updateVars(self):
         self.treeBox.delete(*self.treeBox.get_children())
         try: 
             for file in fileAndFoldersInPath(self.active+"\\" if self.active[-1]==":" else self.active) : #acount for drives
-                self.treeBox.insert('', tk.END, values=(file["FULLNAME"], file["EXTENTION NAME"], file["CREATION DATE"], file["MODIFICATION DATE"], file["ROUNDED SIZE"]))
+                self.treeBox.insert('', tk.END, values=(file["FULLNAME"], file["EXTENTION NAME"], file["CREATION DATE"], file["MODIFICATION DATE"], (file["ROUNDED SIZE"] if file["TYPE"] == "FILE" else "")))
         except NotADirectoryError:
             mb.showerror("FIlE ERROR",f"Windows does not recognise file path\n{self.active}")
             self.active = self.oldActive 
@@ -211,6 +221,7 @@ def getFileType(file) -> tuple[str, str]:
 
     Args:
         file (str): The path to the requested file i.e. C:\\test\\Test.exe
+        returns C:\\test\\Test, .exe
 
     Returns:
         tuple(FILENAME, .FILE EXTENTION) 
@@ -235,6 +246,7 @@ def getFileSize(pathToFile:str)-> tuple[int,str]:
         if trueSize/(2**powerofTen)<10: 
             return trueSize, f"{round(trueSize/(2**(powerofTen-10)))} {fileSizeMagnetude[powerofTen-10]}"
 
+# TODO Add show hidden funculanlity, to do TOFIX \\.foo file showing as dir
 def fileAndFoldersInPath(path: str, showHidden=False) -> list[dict]:
     """Returns information on all of the files and folders in a provided folder
     
@@ -244,13 +256,17 @@ def fileAndFoldersInPath(path: str, showHidden=False) -> list[dict]:
     Returns:
         list[dict]: list of all files in the dir in dicts which contain the file's NAME, TYPE(FILE/FOLDER) and PATH
     """
+    def fType(path):
+        fType = getFileType(path)
+        return (" ​", fType) if isinstance(fType,str) else fType
+
     return [
         {
-            "NAME":getFileType(path+"\\"+file)[0],
+            "NAME": (fileAndExtent := fType(path+"\\"+file))[0],
             "FULLNAME":file,
-            "EXTENTION":getFileType(path+"\\"+file)[1],
-            "EXTENTION NAME":getFileExtentionName(getFileType(path+"\\"+file)[1]),
-            "TYPE": "FILE" if os.path.isfile(path + file) else "FOLDER",
+            "EXTENTION":fileAndExtent[1],
+            "EXTENTION NAME":getFileExtentionName(fileAndExtent[1]),
+            "TYPE": ("FOLDER" if os.path.isdir((path + "\\" + file)) else "FILE"),
             "TRUE SIZE": getFileSize(path+"\\"+file)[0], 
             "ROUNDED SIZE": getFileSize(path+"\\"+file)[1],
             "CREATION DATE":datetime.fromtimestamp(os.path.getctime(path+"\\"+file)).strftime("%d/%m/%y %H:%M"),
@@ -258,6 +274,9 @@ def fileAndFoldersInPath(path: str, showHidden=False) -> list[dict]:
             "PATH":path+"\\"+file
             } 
         for file in os.listdir(path) if not fileIsHidden(path+"\\"+file)]
+
+def isPathFileOrFolder(path):
+    return 
 
 def fileIsHidden(path:str) -> bool:
     if os.name != "nt":
